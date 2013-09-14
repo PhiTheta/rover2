@@ -3,7 +3,6 @@
  * USART2_TX: PA2
  * I2C1_SDA: PB9; I2C1_SCL: PB8
  */
-
 #include <stm32f4xx.h>
 #include <misc.h>			 // I recommend you have a look at these in the ST firmware folder
 #include <stm32f4xx_usart.h> // under Libraries/STM32F4xx_StdPeriph_Driver/inc and src
@@ -211,9 +210,12 @@ unsigned int bearing(float lat1, float lon1, float lat2, float lon2)
 }
 
 int main(void) {
+  // set CP10 and CP11 Full Access 
+  // enable hardware FPU
+  SCB->CPACR |= ((3UL << 10*2)|(3UL << 11*2));  
   
   USART1_init(9600); // initialize USART1 @ 9600 baud
-  USART2_init(9600);
+  USART2_init(115200);
   I2C1_init();
   GPIO_init();
   MPU6050_init(I2C1);
@@ -224,9 +226,10 @@ int main(void) {
 	GPIOD->BSRRL = 0x8000; // set PD12 thru PD15
 	//Delay(1000000L);		 // wait a short period of time
 	
+	USART_puts(USART2, "Reading MPU...");
 	MPU6050_read(I2C1, mpuData);
+	USART_puts(USART2, "done!\n");
 	
-	/*
 	nmea_parse(nmeabuffer[0], &my_gps);
 	nmea_parse(nmeabuffer[1], &my_gps);
 	nmea_parse(nmeabuffer[2], &my_gps);
@@ -238,7 +241,6 @@ int main(void) {
 	unsigned int dist2 = distance((float)my_gps.fix.latitude, (float)my_gps.fix.longitude, (float)50.756866, (float)8.787066);
 	unsigned int bear1 = bearing((float)my_gps.fix.latitude, (float)my_gps.fix.longitude, (float)50.759117, (float)8.803984);
 	unsigned int bear2 = bearing((float)my_gps.fix.latitude, (float)my_gps.fix.longitude, (float)50.756866, (float)8.787066);
-	*/
 	/*
 	buffer[0] = (dist1 / 1000)+48;
 	buffer[1] = ((dist1 % 1000)/100)+48;
