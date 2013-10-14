@@ -1,6 +1,6 @@
 #include "spi.h"
 
-void spi_init(SPI_TypeDef* SPIx, unsigned int prescaler)
+void SPI_init(SPI_TypeDef* SPIx, unsigned int prescaler)
 {
 	GPIO_InitTypeDef GPIO_InitStruct;
 	SPI_InitTypeDef SPI_InitStruct;
@@ -59,7 +59,7 @@ void spi_init(SPI_TypeDef* SPIx, unsigned int prescaler)
 	SPI_Cmd(SPI1, ENABLE); // enable SPI1
 }
 
-void spi_send_single(SPI_TypeDef* SPIx, unsigned char data)
+void SPI_send_single(SPI_TypeDef* SPIx, unsigned char data)
 {
 	unsigned char tmp;
 	SPIx->DR = data; // write data to be transmitted to the SPI data register
@@ -69,7 +69,7 @@ void spi_send_single(SPI_TypeDef* SPIx, unsigned char data)
 	tmp = SPIx->DR; // return received data from SPI data register	
 }
 
-unsigned char spi_receive_single(SPI_TypeDef* SPIx)
+unsigned char SPI_receive_single(SPI_TypeDef* SPIx)
 {
 	SPI1->DR = 0xFF; // write data to be transmitted to the SPI data register
 	while( !(SPI1->SR & SPI_I2S_FLAG_TXE) ); // wait until transmit complete
@@ -78,25 +78,25 @@ unsigned char spi_receive_single(SPI_TypeDef* SPIx)
 	return SPI1->DR; // return received data from SPI data register
 }
 
-void spi_send(SPI_TypeDef* SPIx, unsigned char* data, unsigned int length)
+void SPI_send(SPI_TypeDef* SPIx, unsigned char* data, unsigned int length)
 {
 	while (length--)
 	{
-		spi_send_single(SPIx, *data);
+		SPI_send_single(SPIx, *data);
 		data++;
 	}
 }
 
-void spi_receive(SPI_TypeDef* SPIx, unsigned char* data, unsigned int length)
+void SPI_receive(SPI_TypeDef* SPIx, unsigned char* data, unsigned int length)
 {
 	while (length--)
 	{
-		*data = spi_receive_single(SPIx);
+		*data = SPI_receive_single(SPIx);
 		data++;
 	}
 }
 
-void spi_transmit(SPI_TypeDef* SPIx, unsigned char* txbuf, unsigned char* rxbuf, unsigned int len)
+void SPI_transmit(SPI_TypeDef* SPIx, unsigned char* txbuf, unsigned char* rxbuf, unsigned int len)
 {
 	while (len--)
 	{
