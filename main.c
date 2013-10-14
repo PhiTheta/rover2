@@ -4,24 +4,21 @@
  * I2C1_SDA: PB9; I2C1_SCL: PB8
  */
 #include <stm32f4xx.h>
-#include <misc.h>			 // I recommend you have a look at these in the ST firmware folder
-#include <stm32f4xx_usart.h> // under Libraries/STM32F4xx_StdPeriph_Driver/inc and src
+#include <misc.h> // I recommend you have a look at these in the ST firmware folder under Libraries/STM32F4xx_StdPeriph_Driver/inc and src
 #include <stdlib.h>
+#include <stdio.h>
 #include <math.h>
 #include "gps.h"
 #include "i2c.h"
 #include "MPU6050.h"
 #include "HMC5883L.h"
 
+#define NMEALEN 80
 struct gps_data_t my_gps;
 
-#define NMEALEN 80
-#define NMEASEN 7
-
-static char nmeasent = 0; // index for sentence number
 static char nmeachar = 0; // index for character number
-char nmeabuffer[NMEASEN][NMEALEN];
-char buffer[4];
+char nmeabuffer[NMEALEN];
+char buffer[100];
 
 #define EarthRadius 6371 // mean Earth radius in km
 #define d2r (3.14159265/180)
@@ -30,15 +27,16 @@ char buffer[4];
 int16_t mpuData[6];
 int16_t Ax,Ay,Az,Rx,Ry,Rz;
 
+int16_t hmcData[6];
+
+uint16_t TimerPeriod;
+uint16_t Channel1Width, Channel2Width;
+
 void Delay(__IO uint32_t nCount) {
   while(nCount--) {
   }
 }
 
-/* This funcion shows how to initialize 
- * the GPIO pins on GPIOD and how to configure
- * them as inputs and outputs 
- */
 void GPIO_init(void){
 	GPIO_InitTypeDef GPIO_InitStruct;
 	
@@ -61,11 +59,6 @@ void GPIO_init(void){
 	GPIO_Init(GPIOA, &GPIO_InitStruct);			  // this passes the configuration to the Init function which takes care of the low level stuff
 }
 
-/* This funcion initializes the USART1 peripheral
- * 
- * Arguments: baudrate --> the baudrate at which the USART is 
- * 						   supposed to operate
- */
 void USART1_init(uint32_t baudrate){
 	GPIO_InitTypeDef GPIO_InitStruct; // this is for the GPIO pins used as TX and RX
 	USART_InitTypeDef USART_InitStruct; // this is for the USART1 initilization
@@ -130,7 +123,7 @@ void USART2_init(uint32_t baudrate){
 	USART_InitStruct.USART_Mode = USART_Mode_Tx; // we want to enable the transmitter and the receiver
 	USART_Init(USART2, &USART_InitStruct);					// again all the properties are passed to the USART_Init function which takes care of all the bit setting
 	
-	// finally this enables the complete USART1 peripheral
+	// finally this enables the complete USART2 peripheral
 	USART_Cmd(USART2, ENABLE);
 }
 
@@ -163,6 +156,65 @@ void I2C1_init(void){
 	
 	// enable I2C1
 	I2C_Cmd(I2C1, ENABLE);
+}
+
+void Timer4_init(void)
+{
+	TIM_TimeBaseInitTypeDef  TIM_TimeBaseStructure;
+	TIM_OCInitTypeDef  TIM_OCInitStructure;
+	GPIO_InitTypeDef GPIO_InitStructure;
+	
+	TimerPeriod = (SystemCoreClock / (4 * 50) )-1; // 20 ms Period = 50Hz
+	Channel1Width = ((TimerPeriod * 16) / 200); // 1.66 ms TIM4_CH1 PD12
+	Channel2Width = ((TimerPeriod * 14) / 200); // 1.4 ms TIM4_CH3 PD14
+	/*
+	Channel1Width = TimerPeriod / 2;
+	Channel2Width = TimerPeriod / 2;
+	
+	Channel1Width = (uint16_t) (((uint32_t) 5 * (TimerPeriod - 1)) / 10);
+	Channel2Width = (uint16_t) (((uint32_t) 5 * (TimerPeriod - 1)) / 10);
+	*/
+	// enable Timer 4 clock
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM4 , ENABLE);
+	
+	// Timer 4 configuration
+	TIM_TimeBaseStructure.TIM_Prescaler = 9;
+	TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Up;
+	TIM_TimeBaseStructure.TIM_Period = TimerPeriod;
+	TIM_TimeBaseStructure.TIM_ClockDivision = TIM_CKD_DIV4;
+	TIM_TimeBaseStructure.TIM_RepetitionCounter = 0;
+	TIM_TimeBaseInit(TIM4, &TIM_TimeBaseStructure);
+	
+	// PWM configuration
+	TIM_OCInitStructure.TIM_OCMode = TIM_OCMode_PWM1;
+	TIM_OCInitStructure.TIM_OutputState = TIM_OutputState_Enable;
+	TIM_OCInitStructure.TIM_OCPolarity = TIM_OCPolarity_High;
+	TIM_OCInitStructure.TIM_OCIdleState = TIM_OCIdleState_Reset;
+
+	TIM_OCInitStructure.TIM_Pulse = Channel1Width;
+	TIM_OC1Init(TIM4, &TIM_OCInitStructure);
+
+	TIM_OCInitStructure.TIM_Pulse = Channel2Width;
+	TIM_OC3Init(TIM4, &TIM_OCInitStructure);
+	
+	// enable GPIOD clock
+	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOD, ENABLE);
+	
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_14 | GPIO_Pin_12;
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF; 		// we want the pins to be an output
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz; 	// this sets the GPIO modules clock speed
+	GPIO_InitStructure.GPIO_OType = GPIO_OType_PP; 		// this sets the pin type to push / pull (as opposed to open drain)
+	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL; 	// this sets the pullup / pulldown resistors to be inactive
+	GPIO_Init(GPIOD, &GPIO_InitStructure); 				// this finally passes all the values to the GPIO_Init function which takes care of setting the corresponding bits.
+	
+	GPIO_PinAFConfig(GPIOD, GPIO_PinSource12, GPIO_AF_TIM4);
+	GPIO_PinAFConfig(GPIOD, GPIO_PinSource14, GPIO_AF_TIM4);
+	
+	// TIM4 counter enable
+	TIM_Cmd(TIM4, ENABLE);
+
+	// TIM4 Main Output Enable	  
+	TIM_CtrlPWMOutputs(TIM4, ENABLE);
 }
 
 void USART_puts(USART_TypeDef* USARTx, volatile char *s){
@@ -218,7 +270,9 @@ int main(void) {
   USART2_init(115200);
   I2C1_init();
   GPIO_init();
-  MPU6050_init(I2C1);
+  Timer4_init();
+  //MPU6050_init(I2C1);
+  //HMC5883L_init(I2C1);
   USART_puts(USART2, "Init complete! Hello World!\r\n"); // just send a message to indicate that it works
 
   while (1){  
@@ -226,21 +280,50 @@ int main(void) {
 	GPIOD->BSRRL = 0x8000; // set PD12 thru PD15
 	//Delay(1000000L);		 // wait a short period of time
 	
-	USART_puts(USART2, "Reading MPU...");
-	MPU6050_read(I2C1, mpuData);
-	USART_puts(USART2, "done!\n");
+	//USART_puts(USART2, "Reading MPU...");
+	//MPU6050_read(I2C1, mpuData);
+	//USART_puts(USART2, "done!\n");
 	
-	nmea_parse(nmeabuffer[0], &my_gps);
-	nmea_parse(nmeabuffer[1], &my_gps);
-	nmea_parse(nmeabuffer[2], &my_gps);
-	nmea_parse(nmeabuffer[3], &my_gps);
-	nmea_parse(nmeabuffer[4], &my_gps);
-	nmea_parse(nmeabuffer[5], &my_gps);
-	nmea_parse(nmeabuffer[6], &my_gps);
+	//USART_puts(USART2, "Reading HMC...");
+	//HMC5883L_read(I2C1, hmcData);
+	//USART_puts(USART2, "done!\n\n");
+	/*
 	unsigned int dist1 = distance((float)my_gps.fix.latitude, (float)my_gps.fix.longitude, (float)50.759117, (float)8.803984);
 	unsigned int dist2 = distance((float)my_gps.fix.latitude, (float)my_gps.fix.longitude, (float)50.756866, (float)8.787066);
 	unsigned int bear1 = bearing((float)my_gps.fix.latitude, (float)my_gps.fix.longitude, (float)50.759117, (float)8.803984);
 	unsigned int bear2 = bearing((float)my_gps.fix.latitude, (float)my_gps.fix.longitude, (float)50.756866, (float)8.787066);
+	*/
+	/*
+	Ax = mpuData[0] / 8;
+	Ay = mpuData[1] / 8;
+	Az = mpuData[2] / 8;
+	Rx = mpuData[3] / 131;
+	Ry = mpuData[4] / 131;
+	Rz = mpuData[5] / 131;
+	
+	sprintf(buffer, "AccelX: %i\n", mpuData[0]);
+	USART_puts(USART2, buffer);
+	sprintf(buffer, "AccelY: %i\n", mpuData[1]);
+	USART_puts(USART2, buffer);
+	sprintf(buffer, "AccelZ: %i\n", mpuData[2]);
+	USART_puts(USART2, buffer);
+	sprintf(buffer, "GyroX: %i\n", mpuData[3]);
+	USART_puts(USART2, buffer);
+	sprintf(buffer, "GyroY: %i\n", mpuData[4]);
+	USART_puts(USART2, buffer);
+	sprintf(buffer, "GyroZ: %i\n", mpuData[5]);
+	USART_puts(USART2, buffer);
+	USART_putc(USART2, '\n');
+	*/
+	/*
+	sprintf(buffer, "MagX: %i\n", hmcData[0]);
+	USART_puts(USART2, buffer);
+	sprintf(buffer, "MagY: %i\n", hmcData[1]);
+	USART_puts(USART2, buffer);
+	sprintf(buffer, "MagZ: %i\n", hmcData[2]);
+	USART_puts(USART2, buffer);
+	USART_putc(USART2, '\n');
+	*/
 	/*
 	buffer[0] = (dist1 / 1000)+48;
 	buffer[1] = ((dist1 % 1000)/100)+48;
@@ -266,21 +349,15 @@ void USART1_IRQHandler(void){
 	// check if the USART1 receive interrupt flag was set
 	if( USART_GetITStatus(USART1, USART_IT_RXNE) ){		
 		char charbuf = USART1->DR; // the character from the USART1 data register is saved in t
-		
 		if (charbuf != '\n')
 		{
-			nmeabuffer[nmeasent][nmeachar] = charbuf;
+			nmeabuffer[nmeachar] = charbuf;
 			nmeachar++;
-		}
-		else if ( nmeasent < NMEASEN-1 )
-		{
-			nmeachar = 0;
-			nmeasent++;
 		}
 		else
 		{
 			nmeachar = 0;
-			nmeasent = 0;
+			nmea_parse(nmeabuffer, &my_gps);
 		}
 	}
 }
