@@ -358,7 +358,7 @@
 #define MPU6050_DMP_MEMORY_CHUNK_SIZE   16
 
 
-void MPU6050_init(I2C_TypeDef* i2cp);
-void MPU6050_read(I2C_TypeDef* i2cp, int16_t* mpuAxisData);
+void MPU6050_init(I2C_TypeDef* I2Cx);
+void MPU6050_read(I2C_TypeDef* I2Cx, int16_t* mpuAxisData);
 
 #endif /* _MPU6050_H_ */
