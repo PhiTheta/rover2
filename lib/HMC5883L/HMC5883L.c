@@ -11,7 +11,7 @@ static uint8_t i2ctxbuf[4];		// I2C transmit buffer
 static float headingDegrees = 0;
 
 // initialize HMC5883L on I2C bus passed in i2cp
-void HMC5883L_init(I2C_TypeDef* i2cp)
+void HMC5883L_init(I2C_TypeDef* I2Cx)
 {
 	// set pointer to CRA, register pointer is incremented automatically
 	i2ctxbuf[0] = HMC5883L_CTRL_REG1; // CRA address
@@ -19,16 +19,33 @@ void HMC5883L_init(I2C_TypeDef* i2cp)
 	i2ctxbuf[2] = 0xA0; // 
 	i2ctxbuf[3] = 0x00; // continous measurement
 
-	i2cMasterTransmit(i2cp, HMC5883L_ADDRESS, i2ctxbuf, 4, i2crxbuf, 0); // configure magnetometer
+	//i2cMasterTransmit(i2cp, HMC5883L_ADDRESS, i2ctxbuf, 4, i2crxbuf, 0); // configure magnetometer
+	I2C_start(I2Cx, HMC5883L_ADDRESS<<1, I2C_Direction_Transmitter);
+	I2C_write(I2Cx, i2ctxbuf[0]);
+	I2C_write(I2Cx, i2ctxbuf[1]);
+	I2C_write(I2Cx, i2ctxbuf[2]);
+	I2C_write(I2Cx, i2ctxbuf[3]);
+	I2C_stop(I2Cx);
 }
 
-void HMC5883L_read(I2C_TypeDef* i2cp, int16_t* magAxisData)
+void HMC5883L_read(I2C_TypeDef* I2Cx, int16_t* magAxisData)
 {
 	// set register pointer to X axis MSB
 	i2ctxbuf[0] = HMC5883L_OUT_DATA;
 		
 	// transmit register address and read back 6 bytes of data
-	i2cMasterTransmit(i2cp, HMC5883L_ADDRESS, i2ctxbuf, 1, i2crxbuf, 6);
+	//i2cMasterTransmit(I2Cx, HMC5883L_ADDRESS, i2ctxbuf, 1, i2crxbuf, 6);
+		
+	I2C_start(I2Cx, HMC5883L_ADDRESS<<1, I2C_Direction_Transmitter);
+	I2C_write(I2Cx, i2ctxbuf[0]);
+	I2C_stop(I2Cx);
+	I2C_start(I2Cx, HMC5883L_ADDRESS<<1, I2C_Direction_Receiver);
+	i2crxbuf[0] = I2C_read_ack(I2Cx);
+	i2crxbuf[1] = I2C_read_ack(I2Cx);
+	i2crxbuf[2] = I2C_read_ack(I2Cx);
+	i2crxbuf[3] = I2C_read_ack(I2Cx);
+	i2crxbuf[4] = I2C_read_ack(I2Cx);
+	i2crxbuf[5] = I2C_read_nack(I2Cx);
 		
 	magAxisData[0] = i2crxbuf[0]<<8; // X axis
 	magAxisData[0] |= i2crxbuf[1];
