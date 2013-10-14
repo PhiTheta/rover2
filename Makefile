@@ -23,7 +23,7 @@ STM32_INCLUDES = -I../../Libraries/CMSIS/Device/ST/STM32F4xx/Include/ \
 	-Ilib/MPU6050 \
 	-Ilib/HMC5883L
 
-OPTIMIZE       = -Os
+OPTIMIZE       = -O3
 
 CFLAGS	= $(MCFLAGS)  $(OPTIMIZE)  $(DEFS) -I./ -I./ $(STM32_INCLUDES)  -Wl,-T,stm32_flash.ld
 AFLAGS	= $(MCFLAGS) 
@@ -84,4 +84,4 @@ $(EXECUTABLE): $(SRC) $(STARTUP)
 
 clean:
 	rm -f Startup.lst  $(TARGET)  $(TARGET).lst $(OBJ) $(AUTOGEN)  $(TARGET).out  $(TARGET).hex  $(TARGET).map \
-	 $(TARGET).dmp  $(TARGET).elf
+	 $(TARGET).dmp  $(EXECUTABLE)
