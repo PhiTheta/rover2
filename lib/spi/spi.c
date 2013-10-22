@@ -25,20 +25,6 @@ void SPI_init(SPI_TypeDef* SPIx, unsigned int prescaler)
 	GPIO_PinAFConfig(GPIOA, GPIO_PinSource6, GPIO_AF_SPI1);
 	GPIO_PinAFConfig(GPIOA, GPIO_PinSource7, GPIO_AF_SPI1);
 	
-	// enable clock for used IO pins
-	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOE, ENABLE);
-	
-	/* Configure the chip select pin
-	   in this case we will use PE7 */
-	GPIO_InitStruct.GPIO_Pin = GPIO_Pin_7;
-	GPIO_InitStruct.GPIO_Mode = GPIO_Mode_OUT;
-	GPIO_InitStruct.GPIO_OType = GPIO_OType_PP;
-	GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz;
-	GPIO_InitStruct.GPIO_PuPd = GPIO_PuPd_UP;
-	GPIO_Init(GPIOE, &GPIO_InitStruct);
-	
-	GPIOE->BSRRL |= GPIO_Pin_7; // set PE7 high
-	
 	// enable peripheral clock
 	RCC_APB2PeriphClockCmd(RCC_APB2Periph_SPI1, ENABLE);
 	

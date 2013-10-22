@@ -3,12 +3,6 @@
 
 #include <stm32f4xx.h>
 
-#define CSPORT GPIOA
-#define CSPIN GPIO_Pin_4
-
-#define CS_low CSPORT->ODR &= ~CSPIN
-#define CS_high CSPORT->ODR |= CSPIN
-
 void SPI_init(SPI_TypeDef* SPIx, unsigned int prescaler);
 void SPI_send_single(SPI_TypeDef* SPIx, unsigned char data);
 unsigned char SPI_receive_single(SPI_TypeDef* SPIx);
