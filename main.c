@@ -10,6 +10,7 @@
 #include <math.h>
 #include "gps.h"
 #include "i2c.h"
+#include "ff.h"
 #include "MPU6050.h"
 #include "HMC5883L.h"
 

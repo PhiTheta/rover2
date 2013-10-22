@@ -20,6 +20,7 @@ STM32_INCLUDES = -I../../Libraries/CMSIS/Device/ST/STM32F4xx/Include/ \
 	-I../../Libraries/STM32F4xx_StdPeriph_Driver/inc/ \
 	-Ilib/i2c/ \
 	-Ilib/spi/ \
+	-Ilib/ff/src/ \
 	-Ilib/nmeaparser/ \
 	-Ilib/MPU6050 \
 	-Ilib/HMC5883L
@@ -66,6 +67,8 @@ SRC = main.c \
 	../../Libraries/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_wwdg.c \
 	lib/i2c/i2c.c \
 	lib/spi/spi.c \
+	lib/ff/src/ff.c \
+	lib/ff/src/diskio.c \
 	lib/nmeaparser/gpsutils.c \
 	lib/nmeaparser/geoid.c \
 	lib/nmeaparser/nmea_parse.c \
