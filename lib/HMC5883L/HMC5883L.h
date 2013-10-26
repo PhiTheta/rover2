@@ -56,20 +56,21 @@
 #define HMC5883L_STAT_RDY	0x02
 
 struct HMC5883L {
-	I2C_TypeDef* i2cp;
-	uint8_t measbias;
-	uint8_t outdatarate;
-	uint8_t oversample;
-	uint8_t fullscale;
-	uint8_t mode;
-	int16_t axisRaw[3];
-	float axisScaled[3];
-	float scalefactor;
+	I2C_TypeDef* i2cp;		// I2C port 
+	uint8_t measbias;		// bias configuration of sensors
+	uint8_t outdatarate;	// output data rate
+	uint8_t oversample;		// number of samples to be averaged
+	uint8_t fullscale;		// axis fullscale
+	uint8_t mode;		
+	int16_t axisRaw[3];		// axis raw data
+	float axisScaled[3];	// axis scaled data
+	float scalefactor;		// scale factor to determine Gauss reading from raw data
+	float headingDegrees;	// calculated heading to magnetic north in degrees
 };
 
 void HMC5883L_init(struct HMC5883L* mag);
 void HMC5883L_readRaw(struct HMC5883L* mag);
 void HMC5883L_readScaled(struct HMC5883L* mag);
-float HMC5883L_heading(int16_t* magAxisData, int16_t* accAxisData);
+void HMC5883L_heading(struct HMC5883L* mag, float* accAxisScaled);
 
 #endif /* COMPASS_H */
