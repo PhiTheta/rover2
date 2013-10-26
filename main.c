@@ -14,12 +14,21 @@
 #include "MPU6050.h"
 #include "HMC5883L.h"
 
+volatile uint16_t stringcnt = 60;
+volatile uint8_t icomp = 0;
+FATFS FatFs;
+FIL fil;
+
+float headingDegrees;
+
 #define NMEALEN 80
 struct gps_data_t my_gps;
+struct HMC5883L mag;
 
 static char nmeachar = 0; // index for character number
 char nmeabuffer[NMEALEN];
 char buffer[100];
+char timebuf[20];
 
 #define EarthRadius 6371 // mean Earth radius in km
 #define d2r (3.14159265/180)
@@ -199,17 +208,17 @@ void Timer4_init(void)
 	TIM_OC3Init(TIM4, &TIM_OCInitStructure);
 	
 	// enable GPIOD clock
-	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOD, ENABLE);
+	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE);
 	
-	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_14 | GPIO_Pin_12;
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_7 | GPIO_Pin_6;
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF; 		// we want the pins to be an output
 	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz; 	// this sets the GPIO modules clock speed
 	GPIO_InitStructure.GPIO_OType = GPIO_OType_PP; 		// this sets the pin type to push / pull (as opposed to open drain)
 	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL; 	// this sets the pullup / pulldown resistors to be inactive
-	GPIO_Init(GPIOD, &GPIO_InitStructure); 				// this finally passes all the values to the GPIO_Init function which takes care of setting the corresponding bits.
+	GPIO_Init(GPIOB, &GPIO_InitStructure); 				// this finally passes all the values to the GPIO_Init function which takes care of setting the corresponding bits.
 	
-	GPIO_PinAFConfig(GPIOD, GPIO_PinSource12, GPIO_AF_TIM4);
-	GPIO_PinAFConfig(GPIOD, GPIO_PinSource14, GPIO_AF_TIM4);
+	GPIO_PinAFConfig(GPIOB, GPIO_PinSource6, GPIO_AF_TIM4);
+	GPIO_PinAFConfig(GPIOB, GPIO_PinSource7, GPIO_AF_TIM4);
 	
 	// TIM4 counter enable
 	TIM_Cmd(TIM4, ENABLE);
@@ -263,92 +272,136 @@ unsigned int bearing(float lat1, float lon1, float lat2, float lon2)
 }
 
 int main(void) {
-  // set CP10 and CP11 Full Access 
-  // enable hardware FPU
-  SCB->CPACR |= ((3UL << 10*2)|(3UL << 11*2));  
+	// set CP10 and CP11 Full Access 
+	// enable hardware FPU
+	SCB->CPACR |= ((3UL << 10*2)|(3UL << 11*2));  
   
-  USART1_init(9600); // initialize USART1 @ 9600 baud
-  USART2_init(115200);
-  I2C1_init();
-  GPIO_init();
-  Timer4_init();
-  //MPU6050_init(I2C1);
-  //HMC5883L_init(I2C1);
-  USART_puts(USART2, "Init complete! Hello World!\r\n"); // just send a message to indicate that it works
-
-  while (1){  
-	 
-	GPIOD->BSRRL = 0x8000; // set PD12 thru PD15
-	//Delay(1000000L);		 // wait a short period of time
+	USART1_init(9600); // initialize USART1 @ 9600 baud
+	USART2_init(9600);
+	I2C1_init();
+	GPIO_init();
+	//Timer4_init();
+	MPU6050_init(I2C1);
 	
-	//USART_puts(USART2, "Reading MPU...");
-	//MPU6050_read(I2C1, mpuData);
-	//USART_puts(USART2, "done!\n");
+	mag.i2cp = I2C1;
+	mag.fullscale = HMC5883L_FS_470;
+	mag.measbias = HMC5883L_MEAS_NORM;
+	mag.mode = HMC5883L_MODE_CONT;
+	mag.outdatarate = HMC5883L_ODR_1500;
+	mag.oversample = HMC5883L_OVER_8;
+	HMC5883L_init(&mag);
 	
-	//USART_puts(USART2, "Reading HMC...");
-	//HMC5883L_read(I2C1, hmcData);
-	//USART_puts(USART2, "done!\n\n");
-	/*
-	unsigned int dist1 = distance((float)my_gps.fix.latitude, (float)my_gps.fix.longitude, (float)50.759117, (float)8.803984);
-	unsigned int dist2 = distance((float)my_gps.fix.latitude, (float)my_gps.fix.longitude, (float)50.756866, (float)8.787066);
-	unsigned int bear1 = bearing((float)my_gps.fix.latitude, (float)my_gps.fix.longitude, (float)50.759117, (float)8.803984);
-	unsigned int bear2 = bearing((float)my_gps.fix.latitude, (float)my_gps.fix.longitude, (float)50.756866, (float)8.787066);
-	*/
-	/*
-	Ax = mpuData[0] / 8;
-	Ay = mpuData[1] / 8;
-	Az = mpuData[2] / 8;
-	Rx = mpuData[3] / 131;
-	Ry = mpuData[4] / 131;
-	Rz = mpuData[5] / 131;
+	USART_puts(USART2, "Init complete! Hello World!\r\n"); // just send a message to indicate that it works
 	
-	sprintf(buffer, "AccelX: %i\n", mpuData[0]);
-	USART_puts(USART2, buffer);
-	sprintf(buffer, "AccelY: %i\n", mpuData[1]);
-	USART_puts(USART2, buffer);
-	sprintf(buffer, "AccelZ: %i\n", mpuData[2]);
-	USART_puts(USART2, buffer);
-	sprintf(buffer, "GyroX: %i\n", mpuData[3]);
-	USART_puts(USART2, buffer);
-	sprintf(buffer, "GyroY: %i\n", mpuData[4]);
-	USART_puts(USART2, buffer);
-	sprintf(buffer, "GyroZ: %i\n", mpuData[5]);
-	USART_puts(USART2, buffer);
-	USART_putc(USART2, '\n');
-	*/
-	/*
-	sprintf(buffer, "MagX: %i\n", hmcData[0]);
-	USART_puts(USART2, buffer);
-	sprintf(buffer, "MagY: %i\n", hmcData[1]);
-	USART_puts(USART2, buffer);
-	sprintf(buffer, "MagZ: %i\n", hmcData[2]);
-	USART_puts(USART2, buffer);
-	USART_putc(USART2, '\n');
-	*/
-	/*
-	buffer[0] = (dist1 / 1000)+48;
-	buffer[1] = ((dist1 % 1000)/100)+48;
-	buffer[2] = ((dist1 % 100)/10)+48;
-	buffer[3] = (dist1 % 10)+48;
-	USART_puts(USART2, buffer);
-	USART_putc(USART2, '\n');
-	buffer[0] = (dist2 / 1000)+48;
-	buffer[1] = ((dist2 % 1000)/100)+48;
-	buffer[2] = ((dist2 % 100)/10)+48;
-	buffer[3] = (dist2 % 10)+48;
-	USART_puts(USART2, buffer);
-	USART_puts(USART2, "\n\n");
-	*/
-	GPIOD->BSRRH = 0x8000; // reset PD12 thru PD15
-	//Delay(1000000L);
+	GPIOD->ODR |= GPIO_Pin_15 | GPIO_Pin_14 | GPIO_Pin_13 | GPIO_Pin_12;
 	Delay(20000000L);
-  }
+	GPIOD->ODR &= ~(GPIO_Pin_15 | GPIO_Pin_14 | GPIO_Pin_13 | GPIO_Pin_12);
+
+	/*
+	GPIOD->ODR |= GPIO_Pin_14;
+	f_mount(&FatFs, "", 1);
+	f_open(&fil, "IMU.csv", FA_OPEN_EXISTING | FA_WRITE);
+	GPIOD->ODR &= ~GPIO_Pin_14;
+	
+	f_puts("Ax,Ay,Az,Rx,Ry,Rz,Mx,My,Mz\n", &fil); // print file header
+	
+	for (uint16_t i = 0; i < 100; i++)
+	{
+		GPIOD->ODR |= GPIO_Pin_15; // set PD12 thru PD15
+		MPU6050_read(I2C1, mpuData);
+		HMC5883L_read(I2C1, hmcData);		
+		sprintf(buffer, "%i,%i,%i,%i,%i,%i,%i,%i,%i\n", mpuData[0], mpuData[1], mpuData[2], mpuData[3], mpuData[4], mpuData[5], hmcData[0], hmcData[1], hmcData[2]);
+		f_puts(buffer, &fil);
+		GPIOD->ODR &= ~GPIO_Pin_15; // reset PD12 thru PD15
+		Delay(1000000L);
+	}
+		
+	f_close(&fil);
+	f_mount(0, 0, 0);
+	*/
+	
+	while (1){  
+		
+		GPIOD->ODR |= GPIO_Pin_15; // set PD12 thru PD15
+		
+		MPU6050_read(I2C1, mpuData);
+		HMC5883L_readScaled(&mag);
+	 
+		
+		//headingDegrees = HMC5883L_heading(hmcData, mpuData);
+	 
+		GPIOD->ODR &= ~GPIO_Pin_15;
+	 
+		//sprintf(buffer, "Heading: %f\n", headingDegrees);
+		sprintf(buffer, "Xm: %f Ym: %f Zm: %f\n", mag.axisScaled[0], mag.axisScaled[1], mag.axisScaled[2]);
+		USART_puts(USART2, buffer);
+	 
+		Delay(1000000L);
+		/*
+		sprintf(buffer, "Xm: %f Ym: %f Zm: %f\n", Xm,Ym,Zm);
+		USART_puts(USART2, buffer);
+		
+		sprintf(buffer, "Xar: %i Yar: %i Zar: %i\nXa: %f Ya: %f Za: %f\n", mpuData[0], mpuData[1], mpuData[2], Xa,Ya,Za);
+		USART_puts(USART2, buffer);
+		
+		sprintf(buffer, "Pitch: %f, Roll: %f\ncP: %f sP: %f cR: %f sR: %f\n", pitchRadians, rollRadians, cosPitch, sinPitch, cosRoll, sinRoll);
+		USART_puts(USART2, buffer);
+		
+		sprintf(buffer, "Xh: %f Yh: %f\n", Xh,Yh);
+		USART_puts(USART2, buffer);
+		
+		sprintf(buffer, "Heading: %f\n\n", headingDegrees);
+		USART_puts(USART2, buffer);
+		*/
+		
+		//GPIOD->ODR |= GPIO_Pin_15; // set PD12 thru PD15
+		/*
+		unix_to_iso8601(my_gps.fix.time, timebuf, 20);
+		sprintf(buffer, "%s\n", timebuf);
+		f_puts(buffer, &fil);
+		*/
+
+		//unsigned int dist1 = distance((float)my_gps.fix.latitude, (float)my_gps.fix.longitude, (float)50.759117, (float)8.803984);
+		//unsigned int dist2 = distance((float)my_gps.fix.latitude, (float)my_gps.fix.longitude, (float)50.756866, (float)8.787066);
+		//unsigned int bear1 = bearing((float)my_gps.fix.latitude, (float)my_gps.fix.longitude, (float)50.759117, (float)8.803984);
+		//unsigned int bear2 = bearing((float)my_gps.fix.latitude, (float)my_gps.fix.longitude, (float)50.756866, (float)8.787066);
+
+		/*
+		sprintf(buffer, "AccelX: %i\n", mpuData[0]);
+		USART_puts(USART2, buffer);
+		sprintf(buffer, "AccelY: %i\n", mpuData[1]);
+		USART_puts(USART2, buffer);
+		sprintf(buffer, "AccelZ: %i\n", mpuData[2]);
+		USART_puts(USART2, buffer);
+		sprintf(buffer, "GyroX: %i\n", mpuData[3]);
+		USART_puts(USART2, buffer);
+		sprintf(buffer, "GyroY: %i\n", mpuData[4]);
+		USART_puts(USART2, buffer);
+		sprintf(buffer, "GyroZ: %i\n", mpuData[5]);
+		USART_puts(USART2, buffer);
+		USART_putc(USART2, '\n');
+		
+		sprintf(buffer, "MagX: %i\n", hmcData[0]);
+		USART_puts(USART2, buffer);
+		sprintf(buffer, "MagY: %i\n", hmcData[1]);
+		USART_puts(USART2, buffer);
+		sprintf(buffer, "MagZ: %i\n", hmcData[2]);
+		USART_puts(USART2, buffer);
+		USART_putc(USART2, '\n');
+		*/
+
+		//GPIOD->ODR &= ~GPIO_Pin_15; // reset PD12 thru PD15
+		
+		//Delay(1000000L);
+		//Delay(20000000L);
+	}
 }
 
 // this is the interrupt request handler (IRQ) for ALL USART1 interrupts
 void USART1_IRQHandler(void){
 	// check if the USART1 receive interrupt flag was set
 	if( USART_GetITStatus(USART1, USART_IT_RXNE) ){		
+		GPIOD->ODR |= GPIO_Pin_13;
 		char charbuf = USART1->DR; // the character from the USART1 data register is saved in t
 		if (charbuf != '\n')
 		{
@@ -360,5 +413,6 @@ void USART1_IRQHandler(void){
 			nmeachar = 0;
 			nmea_parse(nmeabuffer, &my_gps);
 		}
+		GPIOD->ODR &= ~GPIO_Pin_13;
 	}
 }
