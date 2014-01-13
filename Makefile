@@ -10,7 +10,7 @@ OD=arm-none-eabi-objdump
 
 BIN=$(CP) -O ihex 
 
-DEFS = -DUSE_STDPERIPH_DRIVER -DSTM32F4XX -DHSE_VALUE=8000000
+DEFS = -DUSE_STDPERIPH_DRIVER -DARM_MATH_CM4 -DSTM32F4XX -DHSE_VALUE=8000000
 STARTUP = ../../Libraries/CMSIS/Device/ST/STM32F4xx/Source/Templates/gcc_ride7/startup_stm32f40xx.s
 
 MCU = cortex-m4
